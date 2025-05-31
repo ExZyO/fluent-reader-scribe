@@ -1,11 +1,17 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { ChevronLeft, ChevronRight, Bookmark } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Bookmark, Hash } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Book, ReaderSettings as ReaderSettingsType } from '@/contexts/ReaderContext';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import ReaderSettings from './ReaderSettings';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface ReaderViewProps {
   book: Book;
@@ -24,16 +30,15 @@ const ReaderView: React.FC<ReaderViewProps> = ({
   onToggleBookmark,
   onReturnToLibrary
 }) => {
-  const [currentPage, setCurrentPage] = useState(book.currentPage);
+  const [currentPage, setCurrentPage] = useState(Math.max(1, book.currentPage));
   const [totalPages, setTotalPages] = useState(book.totalPages);
+  const [pageInput, setPageInput] = useState('');
   const contentRef = useRef<HTMLDivElement>(null);
   
   // Mock implementation of page calculation
-  // In a real implementation, this would be based on the actual content
   const calculatePages = () => {
-    // Simple text-based mock pagination
     const text = book.content;
-    const charsPerPage = 1200; // Rough approximation
+    const charsPerPage = 1200;
     return Math.ceil(text.length / charsPerPage);
   };
   
@@ -43,8 +48,12 @@ const ReaderView: React.FC<ReaderViewProps> = ({
   }, [book.content]);
   
   useEffect(() => {
-    setCurrentPage(book.currentPage);
-  }, [book.currentPage]);
+    const initialPage = Math.max(1, book.currentPage);
+    setCurrentPage(initialPage);
+    if (initialPage === 1 && book.currentPage === 0) {
+      onUpdateProgress(1 / totalPages, 1);
+    }
+  }, [book.currentPage, totalPages, onUpdateProgress]);
   
   const goToNextPage = () => {
     if (currentPage < totalPages) {
@@ -63,12 +72,60 @@ const ReaderView: React.FC<ReaderViewProps> = ({
       onUpdateProgress(progress, prevPage);
     }
   };
+
+  const goToPage = (pageNumber: number) => {
+    const targetPage = Math.max(1, Math.min(pageNumber, totalPages));
+    setCurrentPage(targetPage);
+    const progress = targetPage / totalPages;
+    onUpdateProgress(progress, targetPage);
+    return targetPage;
+  };
+
+  const handlePageInputSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const pageNumber = parseInt(pageInput);
+    if (!isNaN(pageNumber)) {
+      const actualPage = goToPage(pageNumber);
+      setPageInput('');
+      if (actualPage !== pageNumber) {
+        toast.info(`Jumped to page ${actualPage} (valid range: 1-${totalPages})`);
+      }
+    }
+  };
   
   const handleKeyDown = (e: KeyboardEvent) => {
-    if (e.key === 'ArrowRight') {
-      goToNextPage();
-    } else if (e.key === 'ArrowLeft') {
-      goToPreviousPage();
+    // Prevent navigation if user is typing in input field
+    if (document.activeElement?.tagName === 'INPUT') return;
+    
+    switch (e.key) {
+      case 'ArrowRight':
+      case 'd':
+      case 'D':
+        e.preventDefault();
+        goToNextPage();
+        break;
+      case 'ArrowLeft':
+      case 'a':
+      case 'A':
+        e.preventDefault();
+        goToPreviousPage();
+        break;
+      case 'ArrowDown':
+      case 's':
+      case 'S':
+        if (settings.readingMode === 'scroll') {
+          e.preventDefault();
+          goToNextPage();
+        }
+        break;
+      case 'ArrowUp':
+      case 'w':
+      case 'W':
+        if (settings.readingMode === 'scroll') {
+          e.preventDefault();
+          goToPreviousPage();
+        }
+        break;
     }
   };
 
@@ -82,9 +139,8 @@ const ReaderView: React.FC<ReaderViewProps> = ({
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [currentPage, totalPages]);
+  }, [currentPage, totalPages, settings.readingMode]);
   
-  // Mock content for the current page
   const getPageContent = () => {
     const text = book.content;
     const charsPerPage = 1200;
@@ -94,7 +150,6 @@ const ReaderView: React.FC<ReaderViewProps> = ({
   };
 
   const pageContent = getPageContent();
-  
   const isCurrentPageBookmarked = book.bookmarks.some(bm => bm.page === currentPage);
   
   return (
@@ -107,25 +162,46 @@ const ReaderView: React.FC<ReaderViewProps> = ({
     >
       {/* Top bar with title and controls */}
       <div className="flex items-center justify-between p-4 border-b bg-white dark:bg-gray-800">
-        <Button variant="ghost" size="sm" onClick={onReturnToLibrary}>
-          <ChevronLeft className="mr-1 h-4 w-4" />
-          Library
-        </Button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={onReturnToLibrary}
+              className="hover:bg-primary/10 hover:text-primary transition-colors"
+            >
+              <ChevronLeft className="mr-1 h-5 w-5" />
+              Library
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>Return to Library</p>
+          </TooltipContent>
+        </Tooltip>
         
         <h2 className="text-sm font-medium truncate max-w-xs mx-2">{book.title}</h2>
         
-        <div className="flex items-center">
-          <Button
-            variant="ghost"
-            size="icon"
-            className={isCurrentPageBookmarked ? "text-primary" : ""}
-            onClick={addBookmark}
-          >
-            <Bookmark className={cn("h-5 w-5", isCurrentPageBookmarked && "fill-current")} />
-            <span className="sr-only">
-              {isCurrentPageBookmarked ? "Remove bookmark" : "Add bookmark"}
-            </span>
-          </Button>
+        <div className="flex items-center gap-2">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className={cn(
+                  "transition-all duration-200 hover:scale-110",
+                  isCurrentPageBookmarked 
+                    ? "text-amber-500 hover:text-amber-600" 
+                    : "hover:bg-primary/10 hover:text-primary"
+                )}
+                onClick={addBookmark}
+              >
+                <Bookmark className={cn("h-5 w-5", isCurrentPageBookmarked && "fill-current")} />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>{isCurrentPageBookmarked ? "Remove bookmark" : "Add bookmark"}</p>
+            </TooltipContent>
+          </Tooltip>
           
           <ReaderSettings 
             settings={settings}
@@ -174,30 +250,70 @@ const ReaderView: React.FC<ReaderViewProps> = ({
         </div>
         
         {/* Bottom navigation */}
-        <div className="flex items-center justify-between p-4 border-t bg-white dark:bg-gray-800">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={goToPreviousPage}
-            disabled={currentPage <= 1}
-          >
-            <ChevronLeft className="mr-1 h-4 w-4" />
-            Previous
-          </Button>
+        <div className="flex items-center justify-between p-4 border-t bg-white dark:bg-gray-800 gap-4">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="default"
+                size="sm"
+                onClick={goToPreviousPage}
+                disabled={currentPage <= 1}
+                className="bg-primary hover:bg-primary/90 text-primary-foreground transition-all duration-200 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed px-4 py-2 min-w-[80px]"
+              >
+                <ChevronLeft className="mr-1 h-4 w-4" />
+                Previous
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Previous page (A, ←)</p>
+            </TooltipContent>
+          </Tooltip>
           
-          <div className="text-sm">
-            Page {currentPage} of {totalPages}
+          <div className="flex items-center gap-3">
+            <div className="text-sm font-medium">
+              Page {currentPage} of {totalPages}
+            </div>
+            
+            <form onSubmit={handlePageInputSubmit} className="flex items-center gap-2">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="relative">
+                    <Hash className="absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      type="number"
+                      min="1"
+                      max={totalPages}
+                      value={pageInput}
+                      onChange={(e) => setPageInput(e.target.value)}
+                      placeholder="Go to..."
+                      className="w-20 pl-8 text-center border-primary/20 focus:border-primary transition-colors"
+                    />
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Jump to page (1-{totalPages})</p>
+                </TooltipContent>
+              </Tooltip>
+            </form>
           </div>
           
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={goToNextPage}
-            disabled={currentPage >= totalPages}
-          >
-            Next
-            <ChevronRight className="ml-1 h-4 w-4" />
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="default"
+                size="sm"
+                onClick={goToNextPage}
+                disabled={currentPage >= totalPages}
+                className="bg-primary hover:bg-primary/90 text-primary-foreground transition-all duration-200 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed px-4 py-2 min-w-[80px]"
+              >
+                Next
+                <ChevronRight className="ml-1 h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Next page (D, →)</p>
+            </TooltipContent>
+          </Tooltip>
         </div>
       </div>
     </div>
