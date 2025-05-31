@@ -4,59 +4,63 @@ import { Button } from '@/components/ui/button';
 import { Loader2, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 import { useReader, Book } from '@/contexts/ReaderContext';
+import { parseEPUB } from '@/utils/epubParser';
 
 const BookUploader: React.FC = () => {
   const { addBook } = useReader();
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     
     if (!file) return;
     
     // Check file type
-    if (file.type !== 'application/epub+zip') {
+    if (file.type !== 'application/epub+zip' && !file.name.toLowerCase().endsWith('.epub')) {
       toast.error('Please upload an EPUB file');
       return;
     }
     
     setIsUploading(true);
     
-    // This is a mock implementation for now
-    // In a real implementation, you would parse the EPUB file
-    // and extract the content, metadata, and cover
-    setTimeout(() => {
-      try {
-        // Mock book data
-        const mockBook: Omit<Book, 'id' | 'dateAdded'> = {
-          title: file.name.replace(/\.epub$/, ''),
-          author: 'Unknown Author',
-          cover: `https://images.unsplash.com/photo-${Math.floor(Math.random() * 1000000)}?w=400&h=600&fit=crop`,
-          content: 'This is a placeholder for the book content.',
-          progress: 0,
-          lastRead: new Date(),
-          totalPages: Math.floor(Math.random() * 500) + 100,
-          currentPage: 0,
-          tags: ['Uploaded'],
-          highlights: [],
-          bookmarks: []
-        };
-        
-        addBook(mockBook);
-        
-        toast.success(`"${mockBook.title}" added to your library`);
-        setIsUploading(false);
-        
-        // Reset the file input
-        if (fileInputRef.current) {
-          fileInputRef.current.value = '';
-        }
-      } catch (error) {
-        toast.error('Failed to process the EPUB file');
-        setIsUploading(false);
+    try {
+      console.log('Starting EPUB parsing for:', file.name);
+      const epubData = await parseEPUB(file);
+      console.log('EPUB parsing completed:', { 
+        title: epubData.title, 
+        author: epubData.author, 
+        contentLength: epubData.content.length 
+      });
+      
+      const mockBook: Omit<Book, 'id' | 'dateAdded'> = {
+        title: epubData.title,
+        author: epubData.author,
+        cover: epubData.cover || `https://images.unsplash.com/photo-${Math.floor(Math.random() * 1000000)}?w=400&h=600&fit=crop`,
+        content: epubData.content,
+        progress: 0,
+        lastRead: new Date(),
+        totalPages: Math.floor(epubData.content.length / 1200) + 1,
+        currentPage: 0,
+        tags: ['Uploaded'],
+        highlights: [],
+        bookmarks: []
+      };
+      
+      addBook(mockBook);
+      
+      toast.success(`"${epubData.title}" added to your library`);
+      setIsUploading(false);
+      
+      // Reset the file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
       }
-    }, 1500);
+    } catch (error) {
+      console.error('EPUB parsing error:', error);
+      toast.error('Failed to process the EPUB file. Please ensure it\'s a valid EPUB.');
+      setIsUploading(false);
+    }
   };
 
   const triggerFileInput = () => {
@@ -67,7 +71,7 @@ const BookUploader: React.FC = () => {
     <>
       <input
         type="file"
-        accept=".epub"
+        accept=".epub,application/epub+zip"
         onChange={handleUpload}
         className="hidden"
         ref={fileInputRef}
@@ -80,7 +84,7 @@ const BookUploader: React.FC = () => {
         {isUploading ? (
           <>
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            Uploading...
+            Processing EPUB...
           </>
         ) : (
           <>
