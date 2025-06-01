@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { Book } from '@/contexts/ReaderContext';
 import { cn } from '@/lib/utils';
 import { MoreHorizontal, Bookmark } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
 import { 
   DropdownMenu, 
   DropdownMenuContent, 
@@ -17,9 +18,20 @@ interface LibraryBookProps {
   onDelete: (id: string) => void;
   onReset: (id: string) => void;
   className?: string;
+  isSelectionMode?: boolean;
+  isSelected?: boolean;
+  onSelect?: (bookId: string, selected: boolean) => void;
 }
 
-const LibraryBook: React.FC<LibraryBookProps> = ({ book, onDelete, onReset, className }) => {
+const LibraryBook: React.FC<LibraryBookProps> = ({ 
+  book, 
+  onDelete, 
+  onReset, 
+  className,
+  isSelectionMode = false,
+  isSelected = false,
+  onSelect
+}) => {
   const progressPercentage = Math.floor(book.progress * 100);
   
   const formattedDate = new Intl.DateTimeFormat('en-US', {
@@ -37,21 +49,59 @@ const LibraryBook: React.FC<LibraryBookProps> = ({ book, onDelete, onReset, clas
     toast.success(`Progress reset for "${book.title}"`);
   };
 
+  const handleBookClick = (e: React.MouseEvent) => {
+    if (isSelectionMode && onSelect) {
+      e.preventDefault();
+      onSelect(book.id, !isSelected);
+    }
+  };
+
+  const handleCheckboxChange = (checked: boolean) => {
+    if (onSelect) {
+      onSelect(book.id, checked);
+    }
+  };
+
   return (
     <div className={cn('group relative flex flex-col bg-white rounded-lg overflow-hidden shadow-md hover:shadow-lg transition-shadow duration-300', className)}>
       <div className="relative pt-[140%]">
-        <Link to={`/reader/${book.id}`} className="absolute inset-0">
-          <img 
-            src={book.cover} 
-            alt={`${book.title} cover`} 
-            className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-        </Link>
+        {isSelectionMode ? (
+          <div 
+            className="absolute inset-0 cursor-pointer"
+            onClick={handleBookClick}
+          >
+            <img 
+              src={book.cover} 
+              alt={`${book.title} cover`} 
+              className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+          </div>
+        ) : (
+          <Link to={`/reader/${book.id}`} className="absolute inset-0">
+            <img 
+              src={book.cover} 
+              alt={`${book.title} cover`} 
+              className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+          </Link>
+        )}
+        
+        {/* Selection checkbox */}
+        {isSelectionMode && (
+          <div className="absolute top-2 left-2 z-10">
+            <Checkbox
+              checked={isSelected}
+              onCheckedChange={handleCheckboxChange}
+              className="h-5 w-5 bg-white/90 backdrop-blur-sm border-2 border-gray-300"
+            />
+          </div>
+        )}
         
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="absolute top-2 right-2 rounded-full p-1 bg-white/80 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+            <button className="absolute top-2 right-2 rounded-full p-1 bg-white/80 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
               <MoreHorizontal className="h-5 w-5 text-gray-700" />
             </button>
           </DropdownMenuTrigger>
