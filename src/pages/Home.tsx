@@ -1,11 +1,13 @@
-
 import React, { useState, useEffect } from 'react';
 import { useReader, Book, Folder } from '@/contexts/ReaderContext';
 import LibraryBook from '@/components/LibraryBook';
 import FolderList from '@/components/FolderList';
 import BookUploader from '@/components/BookUploader';
 import LibraryViewToggle from '@/components/LibraryViewToggle';
+import BulkActions from '@/components/BulkActions';
 import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Search } from 'lucide-react';
 
 const Home = () => {
@@ -13,7 +15,9 @@ const Home = () => {
     books, 
     folders, 
     updateBook, 
-    deleteBook, 
+    deleteBook,
+    deleteBooks,
+    addBooksToFolder,
     addFolder, 
     updateFolder, 
     deleteFolder,
@@ -27,6 +31,8 @@ const Home = () => {
   const [bookCount, setBookCount] = useState<Record<string, number>>({});
   const [recentlyAdded, setRecentlyAdded] = useState<Book[]>([]);
   const [recentlyRead, setRecentlyRead] = useState<Book[]>([]);
+  const [selectedBooks, setSelectedBooks] = useState<string[]>([]);
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
   
   useEffect(() => {
     // Calculate book counts per folder
@@ -77,6 +83,39 @@ const Home = () => {
   const handleFolderNameChange = (id: string, newName: string) => {
     updateFolder(id, { name: newName });
   };
+
+  const handleBookSelect = (bookId: string, selected: boolean) => {
+    if (selected) {
+      setSelectedBooks(prev => [...prev, bookId]);
+    } else {
+      setSelectedBooks(prev => prev.filter(id => id !== bookId));
+    }
+  };
+
+  const handleSelectAll = () => {
+    const allBookIds = displayedBooks.map(book => book.id);
+    setSelectedBooks(allBookIds);
+  };
+
+  const handleClearSelection = () => {
+    setSelectedBooks([]);
+    setIsSelectionMode(false);
+  };
+
+  const toggleSelectionMode = () => {
+    setIsSelectionMode(!isSelectionMode);
+    if (isSelectionMode) {
+      setSelectedBooks([]);
+    }
+  };
+
+  const handleBulkAddToFolder = (bookIds: string[], folderId: string) => {
+    addBooksToFolder(bookIds, folderId);
+  };
+
+  const handleBulkDelete = (bookIds: string[]) => {
+    deleteBooks(bookIds);
+  };
   
   return (
     <div className="min-h-screen bg-gray-50">
@@ -124,6 +163,45 @@ const Home = () => {
                 />
               </div>
             </div>
+
+            {/* Selection controls */}
+            {displayedBooks.length > 0 && (
+              <div className="flex items-center justify-between mb-4 p-3 bg-white rounded-lg shadow-sm">
+                <div className="flex items-center gap-4">
+                  <Button
+                    variant={isSelectionMode ? "default" : "outline"}
+                    size="sm"
+                    onClick={toggleSelectionMode}
+                  >
+                    {isSelectionMode ? "Cancel Selection" : "Select Books"}
+                  </Button>
+                  
+                  {isSelectionMode && (
+                    <>
+                      <div className="flex items-center gap-2">
+                        <Checkbox
+                          checked={selectedBooks.length === displayedBooks.length}
+                          onCheckedChange={(checked) => {
+                            if (checked) {
+                              handleSelectAll();
+                            } else {
+                              setSelectedBooks([]);
+                            }
+                          }}
+                        />
+                        <span className="text-sm">Select All</span>
+                      </div>
+                      
+                      {selectedBooks.length > 0 && (
+                        <span className="text-sm text-gray-600">
+                          {selectedBooks.length} selected
+                        </span>
+                      )}
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
             
             {/* Recently read section (if no folder selected) */}
             {!selectedFolder && !searchQuery && recentlyRead.length > 0 && (
@@ -136,6 +214,9 @@ const Home = () => {
                       book={book}
                       onDelete={handleDeleteBook}
                       onReset={handleResetProgress}
+                      isSelectionMode={isSelectionMode}
+                      isSelected={selectedBooks.includes(book.id)}
+                      onSelect={handleBookSelect}
                     />
                   ))}
                 </div>
@@ -153,6 +234,9 @@ const Home = () => {
                       book={book}
                       onDelete={handleDeleteBook}
                       onReset={handleResetProgress}
+                      isSelectionMode={isSelectionMode}
+                      isSelected={selectedBooks.includes(book.id)}
+                      onSelect={handleBookSelect}
                     />
                   ))}
                 </div>
@@ -188,6 +272,9 @@ const Home = () => {
                       book={book}
                       onDelete={handleDeleteBook}
                       onReset={handleResetProgress}
+                      isSelectionMode={isSelectionMode}
+                      isSelected={selectedBooks.includes(book.id)}
+                      onSelect={handleBookSelect}
                     />
                   ))}
                 </div>
@@ -200,6 +287,9 @@ const Home = () => {
                       onDelete={handleDeleteBook}
                       onReset={handleResetProgress}
                       className="flex flex-row h-24 !shadow-sm"
+                      isSelectionMode={isSelectionMode}
+                      isSelected={selectedBooks.includes(book.id)}
+                      onSelect={handleBookSelect}
                     />
                   ))}
                 </div>
@@ -208,6 +298,15 @@ const Home = () => {
           </div>
         </div>
       </div>
+
+      {/* Bulk Actions */}
+      <BulkActions
+        selectedBooks={selectedBooks}
+        folders={folders}
+        onClearSelection={handleClearSelection}
+        onDeleteBooks={handleBulkDelete}
+        onAddToFolder={handleBulkAddToFolder}
+      />
     </div>
   );
 };

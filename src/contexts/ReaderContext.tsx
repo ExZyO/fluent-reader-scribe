@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect } from 'react';
 
 export interface Book {
@@ -64,6 +63,9 @@ interface ReaderContextType {
   addBook: (book: Omit<Book, 'id' | 'dateAdded'>) => void;
   updateBook: (id: string, updates: Partial<Book>) => void;
   deleteBook: (id: string) => void;
+  deleteBooks: (ids: string[]) => void;
+  addBooksToFolder: (bookIds: string[], folderId: string) => void;
+  removeBooksFromFolder: (bookIds: string[], folderId: string) => void;
   updateSettings: (settings: Partial<ReaderSettings>) => void;
   addFolder: (name: string) => void;
   updateFolder: (id: string, updates: Partial<Folder>) => void;
@@ -233,6 +235,36 @@ export const ReaderProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     );
   };
 
+  const deleteBooks = (ids: string[]) => {
+    setBooks(prev => prev.filter(book => !ids.includes(book.id)));
+    setFolders(prev => 
+      prev.map(folder => ({
+        ...folder,
+        bookIds: folder.bookIds.filter(bookId => !ids.includes(bookId))
+      }))
+    );
+  };
+
+  const addBooksToFolder = (bookIds: string[], folderId: string) => {
+    setFolders(prev => 
+      prev.map(folder => 
+        folder.id === folderId 
+          ? { ...folder, bookIds: [...new Set([...folder.bookIds, ...bookIds])] }
+          : folder
+      )
+    );
+  };
+
+  const removeBooksFromFolder = (bookIds: string[], folderId: string) => {
+    setFolders(prev => 
+      prev.map(folder => 
+        folder.id === folderId 
+          ? { ...folder, bookIds: folder.bookIds.filter(id => !bookIds.includes(id)) }
+          : folder
+      )
+    );
+  };
+
   const updateSettings = (newSettings: Partial<ReaderSettings>) => {
     setSettings(prev => ({ ...prev, ...newSettings }));
   };
@@ -273,6 +305,9 @@ export const ReaderProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     addBook,
     updateBook,
     deleteBook,
+    deleteBooks,
+    addBooksToFolder,
+    removeBooksFromFolder,
     updateSettings,
     addFolder,
     updateFolder,
