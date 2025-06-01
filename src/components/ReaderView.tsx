@@ -34,11 +34,13 @@ const ReaderView: React.FC<ReaderViewProps> = ({
   const [totalPages, setTotalPages] = useState(book.totalPages);
   const [pageInput, setPageInput] = useState('');
   const contentRef = useRef<HTMLDivElement>(null);
+  const touchStartX = useRef<number>(0);
+  const touchStartY = useRef<number>(0);
   
-  // Mock implementation of page calculation
+  // Increased characters per page for more text
   const calculatePages = () => {
     const text = book.content;
-    const charsPerPage = 1200;
+    const charsPerPage = 2400; // Doubled from 1200 to 2400
     return Math.ceil(text.length / charsPerPage);
   };
   
@@ -93,6 +95,39 @@ const ReaderView: React.FC<ReaderViewProps> = ({
     }
   };
   
+  // Touch event handlers
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX;
+    touchStartY.current = e.touches[0].clientY;
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (!touchStartX.current || !touchStartY.current) return;
+
+    const touchEndX = e.changedTouches[0].clientX;
+    const touchEndY = e.changedTouches[0].clientY;
+    
+    const deltaX = touchStartX.current - touchEndX;
+    const deltaY = touchStartY.current - touchEndY;
+    
+    // Minimum swipe distance
+    const minSwipeDistance = 50;
+    
+    // Ensure horizontal swipe is more significant than vertical
+    if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > minSwipeDistance) {
+      if (deltaX > 0) {
+        // Swipe left - next page
+        goToNextPage();
+      } else {
+        // Swipe right - previous page
+        goToPreviousPage();
+      }
+    }
+    
+    touchStartX.current = 0;
+    touchStartY.current = 0;
+  };
+  
   const handleKeyDown = (e: KeyboardEvent) => {
     // Prevent navigation if user is typing in input field
     if (document.activeElement?.tagName === 'INPUT') return;
@@ -143,7 +178,7 @@ const ReaderView: React.FC<ReaderViewProps> = ({
   
   const getPageContent = () => {
     const text = book.content;
-    const charsPerPage = 1200;
+    const charsPerPage = 2400; // Doubled from 1200 to 2400
     const start = (currentPage - 1) * charsPerPage;
     const end = Math.min(start + charsPerPage, text.length);
     return text.substring(start, end);
@@ -157,7 +192,7 @@ const ReaderView: React.FC<ReaderViewProps> = ({
       className={cn("min-h-screen flex flex-col transition-colors")}
       style={{
         backgroundColor: settings.backgroundColor,
-        color: settings.textColor
+        color: '#ffffff' // Force white text color
       }}
     >
       {/* Top bar with title and controls */}
@@ -218,15 +253,17 @@ const ReaderView: React.FC<ReaderViewProps> = ({
             settings.readingMode === 'scroll' && "overflow-y-auto"
           )}
         >
-          {/* Page content */}
+          {/* Page content with touch controls */}
           <div 
             ref={contentRef}
-            className="flex-1 py-8"
+            className="flex-1 py-8 select-none"
             style={{
               maxWidth: `${settings.textWidth}rem`,
               margin: '0 auto',
               padding: `0 ${settings.margins}px`,
             }}
+            onTouchStart={handleTouchStart}
+            onTouchEnd={handleTouchEnd}
           >
             <div 
               className={cn(
@@ -237,11 +274,12 @@ const ReaderView: React.FC<ReaderViewProps> = ({
               style={{
                 fontFamily: settings.fontFamily,
                 fontSize: `${settings.fontSize}px`,
-                lineHeight: settings.lineHeight
+                lineHeight: settings.lineHeight,
+                color: '#ffffff' // Force white text color
               }}
             >
               {pageContent.split('\n\n').map((paragraph, i) => (
-                <p key={i} style={{marginBottom: `${settings.paragraphSpacing}px`}}>
+                <p key={i} style={{marginBottom: `${settings.paragraphSpacing}px`, color: '#ffffff'}}>
                   {paragraph}
                 </p>
               ))}
@@ -265,7 +303,7 @@ const ReaderView: React.FC<ReaderViewProps> = ({
               </Button>
             </TooltipTrigger>
             <TooltipContent>
-              <p>Previous page (A, ←)</p>
+              <p>Previous page (A, ←, swipe right)</p>
             </TooltipContent>
           </Tooltip>
           
@@ -311,7 +349,7 @@ const ReaderView: React.FC<ReaderViewProps> = ({
               </Button>
             </TooltipTrigger>
             <TooltipContent>
-              <p>Next page (D, →)</p>
+              <p>Next page (D, →, swipe left)</p>
             </TooltipContent>
           </Tooltip>
         </div>
